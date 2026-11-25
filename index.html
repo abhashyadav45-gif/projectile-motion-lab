@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projectile Motion Lab</title>
+<meta name="description" content="Interactive projectile motion simulator with optional air resistance, built for Engineering Physics and Engineering Mechanics.">
+<style>
+:root{
+  --bg:#eef3f7; --panel:#fbfdfe; --ink:#14202b; --muted:#53667a;
+  --grid:#d3dee8; --axis:#3a4b5a; --shot:#d9451f; --ideal:#2b6cb0;
+  --line:#c5d2de; --focus:#2b6cb0;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1a22; --panel:#16242f; --ink:#e6eef4; --muted:#9db0c1;
+    --grid:#253847; --axis:#8aa0b3; --shot:#ff7a59; --ideal:#6fa8e8;
+    --line:#2b4050; --focus:#6fa8e8;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px 40px}
+h1{font-size:clamp(1.6rem,4vw,2.4rem);line-height:1.15;margin:0 0 8px;letter-spacing:-0.02em}
+h2{font-size:1.15rem;margin:0 0 8px}
+.lead{margin:0 0 20px;color:var(--muted);max-width:62ch}
+.lab{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:860px){.lab{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+canvas{display:block;width:100%;aspect-ratio:16/9;border-radius:6px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.btn{font:inherit;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--panel)}
+.btn:hover{opacity:.88}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.kept{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem;color:var(--muted)}
+.kept li{display:flex;align-items:center;gap:6px}
+.swatch{width:14px;height:3px;border-radius:2px;display:inline-block}
+.field{margin-bottom:14px}
+.field .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.field label{font-weight:600}
+.field output{font-variant-numeric:tabular-nums;color:var(--muted)}
+input[type=range]{width:100%;margin:4px 0 0;accent-color:var(--shot)}
+select{width:100%;font:inherit;padding:7px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check input{margin-top:5px;accent-color:var(--shot)}
+.hint{font-size:.85rem;color:var(--muted);margin:2px 0 0}
+fieldset{border:0;padding:0;margin:0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:20px 0 0}
+@media (max-width:700px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{border-left:3px solid var(--shot);padding-left:10px;margin:0}
+.stat dt{color:var(--muted);font-size:.9rem}
+.stat dd{margin:0;font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}
+.compare{margin:12px 0 0;color:var(--muted)}
+.compare:empty{display:none}
+.theory{margin-top:24px}
+.theory p{max-width:70ch;margin:0 0 10px}
+.formula{display:block;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin:0 0 8px;overflow-x:auto;white-space:nowrap}
+footer{margin-top:24px;color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Projectile Motion Lab</h1>
+  <p class="lead">Change the launch settings and watch how a thrown object moves. Compare the ideal path with a path that includes air resistance.</p>
+
+  <div class="lab">
+    <section class="panel" aria-label="Simulation">
+      <canvas id="plot" role="img" aria-label="Projectile path graph"></canvas>
+      <div class="actions">
+        <button class="btn primary" id="launch" type="button">Launch</button>
+        <button class="btn" id="keep" type="button">Keep this path</button>
+        <button class="btn" id="clear" type="button">Clear kept paths</button>
+      </div>
+      <ul class="kept" id="kept" aria-label="Kept paths"></ul>
+    </section>
+
+    <aside class="panel" aria-label="Controls">
+      <div class="field">
+        <div class="row"><label for="speed">Launch speed</label><output id="o-speed" for="speed"></output></div>
+        <input id="speed" type="range" min="1" max="100" step="0.5" value="30">
+      </div>
+      <div class="field">
+        <div class="row"><label for="angle">Launch angle</label><output id="o-angle" for="angle"></output></div>
+        <input id="angle" type="range" min="0" max="90" step="1" value="45">
+      </div>
+      <div class="field">
+        <div class="row"><label for="height">Launch height</label><output id="o-height" for="height"></output></div>
+        <input id="height" type="range" min="0" max="100" step="1" value="0">
+      </div>
+      <div class="field">
+        <label for="gravity">Gravity</label>
+        <select id="gravity">
+          <option value="9.81" data-name="Earth" selected>Earth (9.81 m/s²)</option>
+          <option value="1.62" data-name="Moon">Moon (1.62 m/s²)</option>
+          <option value="3.71" data-name="Mars">Mars (3.71 m/s²)</option>
+          <option value="24.79" data-name="Jupiter">Jupiter (24.79 m/s²)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="check"><input id="drag" type="checkbox"><span>Include air resistance</span></label>
+        <p class="hint">Uses sea-level Earth air and a smooth sphere.</p>
+      </div>
+      <fieldset id="drag-fields" hidden>
+        <div class="field">
+          <div class="row"><label for="mass">Mass</label><output id="o-mass" for="mass"></output></div>
+          <input id="mass" type="range" min="0.05" max="5" step="0.05" value="0.15">
+        </div>
+        <div class="field">
+          <div class="row"><label for="diam">Diameter</label><output id="o-diam" for="diam"></output></div>
+          <input id="diam" type="range" min="1" max="30" step="0.5" value="7">
+        </div>
+      </fieldset>
+      <div class="field" style="margin-bottom:0">
+        <label for="rate">Playback speed</label>
+        <select id="rate">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1× (real time)</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+        </select>
+      </div>
+    </aside>
+  </div>
+
+  <dl class="stats" aria-label="Results">
+    <div class="stat"><dt>Time of flight</dt><dd id="s-time"></dd></div>
+    <div class="stat"><dt>Range</dt><dd id="s-range"></dd></div>
+    <div class="stat"><dt>Maximum height</dt><dd id="s-height"></dd></div>
+    <div class="stat"><dt>Impact speed</dt><dd id="s-impact"></dd></div>
+  </dl>
+  <p class="compare" id="compare"></p>
+
+  <section class="panel theory" aria-label="The physics">
+    <h2>The physics behind it</h2>
+    <p><strong>Without air resistance</strong>, the horizontal velocity stays constant and gravity acts only downward. With launch speed v₀, angle θ, launch height h₀ and gravity g:</p>
+    <code class="formula">x = v₀ cosθ · t</code>
+    <code class="formula">y = h₀ + v₀ sinθ · t − ½ g t²</code>
+    <code class="formula">T = ( v₀ sinθ + √( (v₀ sinθ)² + 2 g h₀ ) ) / g</code>
+    <code class="formula">H = h₀ + (v₀ sinθ)² / (2g) &nbsp;&nbsp;&nbsp; R = v₀ cosθ · T</code>
+    <p>When launched from the ground (h₀ = 0), R = v₀² sin2θ / g, so 45° gives the longest range. Try 30° and 60°: they land at the same place.</p>
+    <p><strong>With air resistance</strong>, drag opposes the motion and grows with the square of the speed: F = ½ ρ C<sub>d</sub> A v². The acceleration is a = −k |v| v − g ĵ, where k = ρ C<sub>d</sub> A / (2m). There is no simple closed-form answer, so the simulator solves it numerically with the 4th-order Runge–Kutta method (time step 0.01 s). It uses ρ = 1.225 kg/m³ and C<sub>d</sub> = 0.47 (smooth sphere). On the Moon and other bodies, the drag setting is only a what-if, because the air density stays at the Earth value.</p>
+    <p><strong>Things to try:</strong> find the best angle with drag on (it drops below 45°), compare a light and a heavy ball of the same size, and keep several paths to compare them on one graph.</p>
+  </section>
+
+  <footer>Made with plain HTML, CSS and JavaScript. No libraries.</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// --- physics start
+const RHO_AIR = 1.225;
+const CD_SPHERE = 0.47;
+
+function finish(pts, maxH) {
+  const last = pts[pts.length - 1];
+  let maxX = 0, maxY = 0;
+  for (const p of pts) {
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return {
+    pts,
+    T: last.t,
+    range: last.x,
+    maxH: maxH === undefined ? maxY : maxH,
+    impact: Math.hypot(last.vx, last.vy),
+    maxX,
+    maxY
+  };
+}
+
+// Closed-form path without air resistance.
+function idealPath(v, deg, h, g) {
+  const r = deg * Math.PI / 180;
+  const vx = v * Math.cos(r);
+  const vy = v * Math.sin(r);
+  const T = (vy + Math.sqrt(vy * vy + 2 * g * h)) / g;
+  const N = 240;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const t = T * i / N;
+    pts.push({ t, x: vx * t, y: Math.max(0, h + vy * t - 0.5 * g * t * t), vx, vy: vy - g * t });
+  }
+  return finish(pts, h + (vy > 0 ? vy * vy / (2 * g) : 0));
+}
+
+// Quadratic drag coefficient k = rho*Cd*A/(2m), diameter in cm, mass in kg.
+function dragK(massKg, diameterCm) {
+  const radius = diameterCm / 200;
+  const area = Math.PI * radius * radius;
+  return 0.5 * RHO_AIR * CD_SPHERE * area / massKg;
+}
+
+// Numerical path with quadratic air resistance (RK4).
+function dragPath(v, deg, h, g, k) {
+  const r = deg * Math.PI / 180;
+  let s = [0, h, v * Math.cos(r), v * Math.sin(r)];
+  let t = 0;
+  let maxH = h;
+  const dt = 0.01;
+  const pts = [{ t, x: s[0], y: s[1], vx: s[2], vy: s[3] }];
+  const f = (q) => {
+    const sp = Math.hypot(q[2], q[3]);
+    return [q[2], q[3], -k * sp * q[2], -g - k * sp * q[3]];
+  };
+  const adv = (q, d, m) => q.map((val, j) => val + d * m[j]);
+  for (let i = 0; i < 300000; i++) {
+    const k1 = f(s);
+    const k2 = f(adv(s, dt / 2, k1));
+    const k3 = f(adv(s, dt / 2, k2));
+    const k4 = f(adv(s, dt, k3));
+    const n = s.map((val, j) => val + dt / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+    if (n[1] < 0) {
+      const fr = s[1] / (s[1] - n[1]);
+      pts.push({
+        t: t + fr * dt,
+        x: s[0] + fr * (n[0] - s[0]),
+        y: 0,
+        vx: s[2] + fr * (n[2] - s[2]),
+        vy: s[3] + fr * (n[3] - s[3])
+      });
+      break;
+    }
+    s = n;
+    t += dt;
+    pts.push({ t, x: s[0], y: s[1], vx: s[2], vy: s[3] });
+    if (s[1] > maxH) maxH = s[1];
+  }
+  return finish(pts, maxH);
+}
+
+// Position at time t, interpolated between stored points.
+function at(pts, t) {
+  const last = pts[pts.length - 1];
+  if (t <= 0) return pts[0];
+  if (t >= last.t) return last;
+  let lo = 0, hi = pts.length - 1;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (pts[m].t <= t) lo = m; else hi = m;
+  }
+  const a = pts[lo], b = pts[hi];
+  const u = (t - a.t) / ((b.t - a.t) || 1);
+  return { t, x: a.x + u * (b.x - a.x), y: a.y + u * (b.y - a.y) };
+}
+// --- physics end
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('plot');
+const ctx = canvas.getContext('2d');
+const inp = {
+  speed: $('speed'), angle: $('angle'), height: $('height'), gravity: $('gravity'),
+  drag: $('drag'), mass: $('mass'), diam: $('diam'), rate: $('rate')
+};
+const KEPT_COLORS = ['#2f9e8f', '#8e5bd1', '#c28a00', '#d6336c', '#3b82c4', '#5a9a2e'];
+const MAX_KEPT = KEPT_COLORS.length;
+
+let params = null;
+let cur = null;
+let ideal = null;
+let simT = 0;
+let anim = null;
+let raf = 0;
+let keptPaths = [];
+let colorIndex = 0;
+
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const f2 = (n) => n.toFixed(2);
+
+function readParams() {
+  return {
+    v: Number(inp.speed.value),
+    a: Number(inp.angle.value),
+    h: Number(inp.height.value),
+    g: Number(inp.gravity.value),
+    drag: inp.drag.checked,
+    m: Number(inp.mass.value),
+    d: Number(inp.diam.value),
+    gName: inp.gravity.selectedOptions[0].dataset.name
+  };
+}
+
+function stopAnim() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  anim = null;
+}
+
+function recompute() {
+  stopAnim();
+  params = readParams();
+  const id = idealPath(params.v, params.a, params.h, params.g);
+  if (params.drag) {
+    cur = dragPath(params.v, params.a, params.h, params.g, dragK(params.m, params.d));
+    ideal = id;
+  } else {
+    cur = id;
+    ideal = null;
+  }
+  simT = 0;
+  $('drag-fields').hidden = !params.drag;
+  $('o-speed').textContent = params.v + ' m/s';
+  $('o-angle').textContent = params.a + '°';
+  $('o-height').textContent = params.h + ' m';
+  $('o-mass').textContent = f2(params.m) + ' kg';
+  $('o-diam').textContent = params.d + ' cm';
+  $('s-time').textContent = f2(cur.T) + ' s';
+  $('s-range').textContent = f2(cur.range) + ' m';
+  $('s-height').textContent = f2(cur.maxH) + ' m';
+  $('s-impact').textContent = f2(cur.impact) + ' m/s';
+  $('compare').textContent = ideal
+    ? 'Without air resistance the range would be ' + f2(ideal.range) + ' m, which is ' +
+      f2(ideal.range - cur.range) + ' m farther.'
+    : '';
+  canvas.setAttribute('aria-label',
+    'Projectile path graph. Range ' + f2(cur.range) + ' metres, maximum height ' +
+    f2(cur.maxH) + ' metres, time of flight ' + f2(cur.T) + ' seconds.');
+  draw();
+}
+
+function niceStep(raw) {
+  const e = Math.floor(Math.log10(raw));
+  const base = Math.pow(10, e);
+  const m = raw / base;
+  const nice = m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10;
+  return nice * base;
+}
+
+function draw() {
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H || !cur) return;
+  const css = getComputedStyle(document.documentElement);
+  const col = (n) => css.getPropertyValue(n).trim();
+  const dpr = window.devicePixelRatio || 1;
+  const cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+  if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 52, padR = 16, padT = 18, padB = 34;
+  const pw = W - padL - padR, ph = H - padT - padB;
+
+  let xmax = 1, ymax = 1;
+  const all = [cur].concat(ideal ? [ideal] : [], keptPaths);
+  for (const p of all) {
+    if (p.maxX > xmax) xmax = p.maxX;
+    if (p.maxY > ymax) ymax = p.maxY;
+  }
+  xmax *= 1.06;
+  ymax *= 1.12;
+  const sc = Math.min(pw / xmax, ph / ymax);
+  const X = (x) => padL + x * sc;
+  const Y = (y) => padT + ph - y * sc;
+  const worldW = pw / sc, worldH = ph / sc;
+  const step = niceStep(worldW / 8);
+
+  ctx.font = '12px system-ui, -apple-system, "Segoe UI", sans-serif';
+  ctx.lineWidth = 1;
+
+  // grid and tick labels
+  const everyX = Math.max(1, Math.ceil(40 / (step * sc)));
+  const everyY = Math.max(1, Math.ceil(22 / (step * sc)));
+  ctx.strokeStyle = col('--grid');
+  ctx.fillStyle = col('--muted');
+  for (let i = 0; i * step <= worldW + 1e-9; i++) {
+    const px = Math.round(X(i * step)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, Y(0)); ctx.stroke();
+    if (i % everyX === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillText(String(Number((i * step).toFixed(6))), px, Y(0) + 16);
+    }
+  }
+  for (let j = 0; j * step <= worldH + 1e-9; j++) {
+    const py = Math.round(Y(j * step)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(W - padR, py); ctx.stroke();
+    if (j % everyY === 0) {
+      ctx.textAlign = 'right';
+      ctx.fillText(String(Number((j * step).toFixed(6))), padL - 12, py + 4);
+    }
+  }
+  ctx.textAlign = 'right';
+  ctx.fillText('Distance (m)', W - padR, H - 4);
+  ctx.textAlign = 'left';
+  ctx.fillText('Height (m)', padL + 6, 12);
+
+  // ground and launch platform
+  ctx.strokeStyle = col('--axis');
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(padL, Y(0)); ctx.lineTo(W - padR, Y(0)); ctx.stroke();
+  if (params.h > 0) {
+    ctx.fillStyle = col('--axis');
+    ctx.fillRect(X(0) - 6, Y(params.h), 6, Y(0) - Y(params.h));
+  }
+
+  function trace(pts, tMax) {
+    const stride = Math.max(1, Math.floor(pts.length / 1500));
+    const last = pts[pts.length - 1];
+    ctx.beginPath();
+    ctx.moveTo(X(pts[0].x), Y(pts[0].y));
+    for (let i = stride; i < pts.length; i += stride) {
+      if (pts[i].t > tMax) break;
+      ctx.lineTo(X(pts[i].x), Y(pts[i].y));
+    }
+    if (tMax >= last.t) {
+      ctx.lineTo(X(last.x), Y(last.y));
+    } else {
+      const p = at(pts, tMax);
+      ctx.lineTo(X(p.x), Y(p.y));
+    }
+  }
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // kept paths
+  for (const k of keptPaths) {
+    ctx.strokeStyle = k.color;
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([]);
+    trace(k.pts, Infinity);
+    ctx.stroke();
+  }
+
+  // ideal path for comparison when drag is on
+  if (ideal) {
+    ctx.strokeStyle = col('--ideal');
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([8, 5]);
+    trace(ideal.pts, Infinity);
+    ctx.stroke();
+  }
+
+  // predicted path (dashed) and travelled trail (solid)
+  const shot = col('--shot');
+  ctx.strokeStyle = shot;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash([3, 5]);
+  trace(cur.pts, Infinity);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.setLineDash([]);
+  ctx.lineWidth = 3;
+  trace(cur.pts, simT);
+  ctx.stroke();
+
+  // landing marker
+  ctx.strokeStyle = shot;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(X(cur.range), Y(0), 4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // launch direction arrow while idle
+  if (simT === 0) {
+    const r = params.a * Math.PI / 180;
+    ctx.strokeStyle = col('--ink');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(X(0), Y(params.h));
+    ctx.lineTo(X(0) + 34 * Math.cos(r), Y(params.h) - 34 * Math.sin(r));
+    ctx.stroke();
+  }
+
+  // ball
+  const pos = at(cur.pts, simT);
+  ctx.fillStyle = shot;
+  ctx.strokeStyle = col('--panel');
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(X(pos.x), Y(pos.y), 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // legend
+  if (ideal) {
+    const lx = W - padR - 170, ly = padT + 8;
+    ctx.fillStyle = col('--muted');
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = col('--ideal');
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 28, ly); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillText('No air resistance', lx + 36, ly + 4);
+  }
+}
+
+function launch() {
+  stopAnim();
+  if (cur.T <= 0) { simT = 0; draw(); return; }
+  if (reduceMotion()) { simT = cur.T; draw(); return; }
+  simT = 0;
+  anim = { start: performance.now(), rate: Number(inp.rate.value) };
+  const frame = (now) => {
+    if (!anim) return;
+    simT = Math.min(cur.T, (now - anim.start) / 1000 * anim.rate);
+    draw();
+    if (simT >= cur.T) { anim = null; raf = 0; } else { raf = requestAnimationFrame(frame); }
+  };
+  raf = requestAnimationFrame(frame);
+}
+
+function renderKept() {
+  const ul = $('kept');
+  ul.textContent = '';
+  for (const k of keptPaths) {
+    const li = document.createElement('li');
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = k.color;
+    const txt = document.createElement('span');
+    txt.textContent = k.label;
+    li.appendChild(sw);
+    li.appendChild(txt);
+    ul.appendChild(li);
+  }
+}
+
+function keepPath() {
+  const label = params.v + ' m/s at ' + params.a + '°' +
+    (params.h > 0 ? ', ' + params.h + ' m high' : '') +
+    ', ' + params.gName + (params.drag ? ', with drag' : '');
+  keptPaths.push({
+    pts: cur.pts, maxX: cur.maxX, maxY: cur.maxY, label,
+    color: KEPT_COLORS[colorIndex % KEPT_COLORS.length]
+  });
+  colorIndex++;
+  if (keptPaths.length > MAX_KEPT) keptPaths.shift();
+  renderKept();
+  draw();
+}
+
+for (const key of ['speed', 'angle', 'height', 'gravity', 'drag', 'mass', 'diam']) {
+  inp[key].addEventListener('input', recompute);
+  inp[key].addEventListener('change', recompute);
+}
+$('launch').addEventListener('click', launch);
+$('keep').addEventListener('click', keepPath);
+$('clear').addEventListener('click', () => { keptPaths = []; renderKept(); draw(); });
+
+if ('ResizeObserver' in window) {
+  new ResizeObserver(draw).observe(canvas);
+} else {
+  window.addEventListener('resize', draw);
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+
+recompute();
+})();
+</script>
+</body>
+</html>
