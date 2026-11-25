@@ -2,7 +2,7 @@
 
 An interactive projectile motion simulator that runs in the browser. It was built with plain HTML, CSS and JavaScript, with no libraries or build step.
 
-**Live demo:** `https://<your-username>.github.io/projectile-motion-lab/` (see "Publish it" below)
+**Live demo:** `https://abhashyadav45-gif.github.io/projectile-motion-lab/` (see "Publish it" below)
 
 ## What it does
 
@@ -53,4 +53,4 @@ Open `index.html` in any browser. No install is needed.
 
 ## About
 
-Made by [Your Name] for Engineering Physics / Engineering Mechanics, 1st year B.Tech.
+Made by [Abhash Yadav] for Engineering Physics / Engineering Mechanics, 1st year B.Tech.
